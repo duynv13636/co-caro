@@ -1,36 +1,82 @@
-This is a [Next.js](https://nextjs.org) project bootstrapped with [`create-next-app`](https://nextjs.org/docs/app/api-reference/cli/create-next-app).
+# Caro OX — Premium Tic-Tac-Toe
+
+A premium 2-player Caro (Tic-Tac-Toe) game built with Next.js, TypeScript and Tailwind CSS.
+Play **locally** on one device, or **online** with a friend on separate devices via a shareable room link.
 
 ## Getting Started
 
-First, run the development server:
-
 ```bash
+npm install
 npm run dev
-# or
-yarn dev
-# or
-pnpm dev
-# or
-bun dev
 ```
 
-Open [http://localhost:3000](http://localhost:3000) with your browser to see the result.
+Open [http://localhost:3000](http://localhost:3000). Local 2-player mode works out of the box — no setup needed.
 
-You can start editing the page by modifying `app/page.tsx`. The page auto-updates as you edit the file.
+## Enabling Online Play
 
-This project uses [`next/font`](https://nextjs.org/docs/app/building-your-application/optimizing/fonts) to automatically optimize and load [Geist](https://vercel.com/font), a new font family for Vercel.
+Online play uses [Firebase Realtime Database](https://firebase.google.com/docs/database) so two browsers
+can sync moves live. There is no custom server — each client talks to Firebase directly.
 
-## Learn More
+1. Go to the [Firebase Console](https://console.firebase.google.com) and create a project (the free
+   Spark plan is enough).
+2. In the project, click **Add app → Web**, and copy the `firebaseConfig` values it shows you.
+3. In the left sidebar, open **Build → Realtime Database → Create Database**. Pick any region and start
+   in **test mode** (you'll lock it down with the rules below).
+4. Copy `.env.local.example` to `.env.local` and fill in the values from step 2:
 
-To learn more about Next.js, take a look at the following resources:
+   ```bash
+   cp .env.local.example .env.local
+   ```
 
-- [Next.js Documentation](https://nextjs.org/docs) - learn about Next.js features and API.
-- [Learn Next.js](https://nextjs.org/learn) - an interactive Next.js tutorial.
+5. In the Realtime Database's **Rules** tab, replace the rules with:
 
-You can check out [the Next.js GitHub repository](https://github.com/vercel/next.js) - your feedback and contributions are welcome!
+   ```json
+   {
+     "rules": {
+       "rooms": {
+         "$code": {
+           ".read": true,
+           ".write": true,
+           ".validate": "newData.hasChildren(['boardSize', 'board', 'currentPlayer', 'players', 'scores'])"
+         }
+       }
+     }
+   }
+   ```
 
-## Deploy on Vercel
+   This scopes read/write access to the `/rooms` path only (nothing else in your database is exposed).
+   There's no login system, so anyone with a room code can join it — that's by design for a quick
+   "share a link and play" game, not a substitute for real authentication.
 
-The easiest way to deploy your Next.js app is to use the [Vercel Platform](https://vercel.com/new?utm_medium=default-template&filter=next.js&utm_source=create-next-app&utm_campaign=create-next-app-readme) from the creators of Next.js.
+6. Restart `npm run dev`. The **Play Online** button in the header will now let you create/join rooms.
 
-Check out our [Next.js deployment documentation](https://nextjs.org/docs/app/building-your-application/deploying) for more details.
+If `.env.local` is missing, the app still runs fine — the Online lobby just shows a short message
+explaining it isn't configured yet, instead of crashing.
+
+## How Online Play Works
+
+- **Create Room** generates a short room code (e.g. `A7K2QX`), creates a `/rooms/<code>` entry in
+  Firebase, and assigns you `Player X`.
+- Share the room link (shown on the waiting screen) with a friend. When they open it, they're assigned
+  `Player O` automatically.
+- Every move is written through a Firebase **transaction** that re-validates it's your turn and the cell
+  is empty before applying it — this prevents both players from taking the same turn if they click at the
+  same instant.
+- Board size, New Game and Reset Score all sync instantly to both players.
+- A browser tab remembers its player identity (via a random id in `localStorage`), so reloading the page
+  reconnects you to the same seat instead of taking the open slot.
+- A third visitor opening an already-full room lands on a "Room is full" screen.
+
+## Deploying
+
+This is a standard Next.js app — deploy it anywhere that runs Next.js (e.g.
+[Vercel](https://vercel.com/new)). Just make sure to add the same `NEXT_PUBLIC_FIREBASE_*` environment
+variables from `.env.local` to your hosting provider's project settings if you want Online Play to work
+in production too.
+
+## Tech Stack
+
+- Next.js (App Router) + TypeScript + Tailwind CSS
+- `lucide-react` for icons, `canvas-confetti` for the win celebration
+- `firebase` (Realtime Database) for online multiplayer sync
+- No backend/API routes — the game engine (`lib/game.ts`) and all state live on the client
