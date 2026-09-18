@@ -5,6 +5,8 @@ import Link from "next/link";
 import { Home, Loader2 } from "lucide-react";
 import confetti from "canvas-confetti";
 import { useOnlineGame } from "@/hooks/useOnlineGame";
+import { getCellValue } from "@/lib/game";
+import type { Coord } from "@/types/game";
 import { useGameEndEffects } from "@/hooks/useGameEndEffects";
 import { useTheme } from "@/hooks/useTheme";
 import { useSound } from "@/hooks/useSound";
@@ -159,10 +161,10 @@ export function RoomGame({ code }: RoomGameProps) {
   const { board, boardSize, currentPlayer, winner, winningCells, isDraw, scores } = room;
   const boardDisabled = Boolean(winner) || isDraw || !opponentConnected || !isMyTurn;
 
-  const handleCellClick = (index: number) => {
-    if (board[index] || boardDisabled) return;
+  const handleCellClick = (coord: Coord) => {
+    if (getCellValue(board, coord.row, coord.col) || boardDisabled) return;
     playMove(currentPlayer);
-    makeMove(index);
+    makeMove(coord);
   };
 
   const handleNewGame = () => {
@@ -204,7 +206,7 @@ export function RoomGame({ code }: RoomGameProps) {
       ) : null}
 
       <div className="mt-6 flex justify-center">
-        <BoardSizeSelector value={boardSize} onChange={handleBoardSizeChange} />
+        <BoardSizeSelector value={boardSize} onChange={handleBoardSizeChange} sizes={[3, 5, 10]} />
       </div>
 
       <div className="mt-6">
@@ -218,14 +220,16 @@ export function RoomGame({ code }: RoomGameProps) {
       </div>
 
       <div className="mt-8">
-        <GameBoard
-          board={board}
-          boardSize={boardSize}
-          onCellClick={handleCellClick}
-          winner={winner}
-          winningCells={winningCells}
-          isDraw={isDraw}
-        />
+        {boardSize === 3 || boardSize === 5 || boardSize === 10 ? (
+          <GameBoard
+            board={board}
+            boardSize={boardSize}
+            onCellClick={handleCellClick}
+            winner={winner}
+            winningCells={winningCells}
+            isDraw={isDraw}
+          />
+        ) : null}
       </div>
 
       <div className="mt-6">

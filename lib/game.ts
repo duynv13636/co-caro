@@ -1,10 +1,13 @@
-import type { BoardSize, Cell, Player, WinResult } from "@/types/game";
+import type { BoardSize, Coord, FixedBoardSize, Player, SparseBoard, WinResult } from "@/types/game";
 
-const WIN_LENGTHS: Record<BoardSize, number> = {
+const WIN_LENGTHS: Record<FixedBoardSize, number> = {
   3: 3,
   5: 4,
   10: 5,
+  1000: 5,
 };
+
+const INFINITE_WIN_LENGTH = 5;
 
 const DIRECTIONS: Array<[number, number]> = [
   [0, 1], // horizontal
@@ -14,54 +17,65 @@ const DIRECTIONS: Array<[number, number]> = [
 ];
 
 export function getWinLength(boardSize: BoardSize): number {
-  return WIN_LENGTHS[boardSize];
+  return boardSize === "infinite" ? INFINITE_WIN_LENGTH : WIN_LENGTHS[boardSize];
 }
 
-export function createEmptyBoard(boardSize: BoardSize): Cell[] {
-  return Array<Cell>(boardSize * boardSize).fill(null);
+export function cellKey(row: number, col: number): string {
+  return `${row},${col}`;
 }
 
-export function makeMove(board: Cell[], index: number, player: Player): Cell[] {
-  if (board[index] !== null) return board;
-  const next = board.slice();
-  next[index] = player;
-  return next;
+export function getCellValue(board: SparseBoard, row: number, col: number): Player | null {
+  return board[cellKey(row, col)] ?? null;
 }
 
-export function checkWinner(
-  board: Cell[],
-  boardSize: BoardSize,
-  winLength: number = getWinLength(boardSize)
-): WinResult | null {
-  for (let row = 0; row < boardSize; row++) {
-    for (let col = 0; col < boardSize; col++) {
-      const index = row * boardSize + col;
-      const player = board[index];
-      if (!player) continue;
+export function createEmptyBoard(): SparseBoard {
+  return {};
+}
 
-      for (const [dRow, dCol] of DIRECTIONS) {
-        const cells: number[] = [index];
-        for (let step = 1; step < winLength; step++) {
-          const r = row + dRow * step;
-          const c = col + dCol * step;
-          if (r < 0 || r >= boardSize || c < 0 || c >= boardSize) break;
-          const idx = r * boardSize + c;
-          if (board[idx] !== player) break;
-          cells.push(idx);
-        }
-        if (cells.length >= winLength) {
-          return { winner: player, winningCells: cells };
-        }
-      }
+export function placeMove(board: SparseBoard, coord: Coord, player: Player): SparseBoard {
+  const key = cellKey(coord.row, coord.col);
+  if (board[key]) return board;
+  return { ...board, [key]: player };
+}
+
+/**
+ * A move can only ever create a new winning line through the cell it was just
+ * placed on, so checking outward from that one cell (instead of scanning the
+ * whole board) is both simpler and the only approach that works for a board
+ * with no fixed bounds.
+ */
+export function checkWinnerFromMove(board: SparseBoard, lastMove: Coord, boardSize: BoardSize): WinResult | null {
+  const player = getCellValue(board, lastMove.row, lastMove.col);
+  if (!player) return null;
+
+  const winLength = getWinLength(boardSize);
+  const inBounds = (row: number, col: number) =>
+    boardSize === "infinite" || (row >= 0 && row < boardSize && col >= 0 && col < boardSize);
+
+  for (const [dRow, dCol] of DIRECTIONS) {
+    const line: Coord[] = [lastMove];
+
+    for (let step = 1; step < winLength; step++) {
+      const row = lastMove.row + dRow * step;
+      const col = lastMove.col + dCol * step;
+      if (!inBounds(row, col) || getCellValue(board, row, col) !== player) break;
+      line.push({ row, col });
+    }
+    for (let step = 1; step < winLength; step++) {
+      const row = lastMove.row - dRow * step;
+      const col = lastMove.col - dCol * step;
+      if (!inBounds(row, col) || getCellValue(board, row, col) !== player) break;
+      line.unshift({ row, col });
+    }
+
+    if (line.length >= winLength) {
+      return { winner: player, winningCells: line };
     }
   }
   return null;
 }
 
-export function checkDraw(board: Cell[]): boolean {
-  return board.every((cell) => cell !== null);
-}
-
-export function getWinningCells(result: WinResult | null): number[] {
-  return result?.winningCells ?? [];
+export function checkDraw(board: SparseBoard, boardSize: BoardSize): boolean {
+  if (boardSize === "infinite") return false;
+  return Object.keys(board).length >= boardSize * boardSize;
 }

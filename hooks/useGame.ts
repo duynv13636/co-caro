@@ -1,8 +1,8 @@
 "use client";
 
 import { useCallback, useState, useSyncExternalStore } from "react";
-import type { BoardSize, Cell, Player, Scores } from "@/types/game";
-import { checkDraw, checkWinner, createEmptyBoard, makeMove as applyMove } from "@/lib/game";
+import type { BoardSize, Coord, Player, Scores, SparseBoard } from "@/types/game";
+import { checkDraw, checkWinnerFromMove, createEmptyBoard, getCellValue, placeMove } from "@/lib/game";
 import { createPersistedStore } from "@/lib/store";
 
 const DEFAULT_SCORES: Scores = { X: 0, O: 0, draws: 0 };
@@ -19,10 +19,11 @@ export function useGame() {
   );
   const scores = useSyncExternalStore(scoresStore.subscribe, scoresStore.getSnapshot, scoresStore.getServerSnapshot);
 
-  const [board, setBoard] = useState<Cell[]>(() => createEmptyBoard(DEFAULT_BOARD_SIZE));
+  const [board, setBoard] = useState<SparseBoard>(() => createEmptyBoard());
+  const [lastMove, setLastMove] = useState<Coord | null>(null);
   const [currentPlayer, setCurrentPlayer] = useState<Player>("X");
   const [winner, setWinner] = useState<Player | null>(null);
-  const [winningCells, setWinningCells] = useState<number[]>([]);
+  const [winningCells, setWinningCells] = useState<Coord[]>([]);
   const [isDraw, setIsDraw] = useState(false);
 
   // Reset the live round whenever the persisted board size changes — either from
@@ -32,7 +33,8 @@ export function useGame() {
   const [syncedBoardSize, setSyncedBoardSize] = useState(boardSize);
   if (boardSize !== syncedBoardSize) {
     setSyncedBoardSize(boardSize);
-    setBoard(createEmptyBoard(boardSize));
+    setBoard(createEmptyBoard());
+    setLastMove(null);
     setCurrentPlayer("X");
     setWinner(null);
     setWinningCells([]);
@@ -40,19 +42,20 @@ export function useGame() {
   }
 
   const makeMove = useCallback(
-    (index: number) => {
-      if (winner || isDraw || board[index] !== null) return;
+    (coord: Coord) => {
+      if (winner || isDraw || getCellValue(board, coord.row, coord.col) !== null) return;
 
-      const nextBoard = applyMove(board, index, currentPlayer);
-      const result = checkWinner(nextBoard, boardSize);
+      const nextBoard = placeMove(board, coord, currentPlayer);
+      const result = checkWinnerFromMove(nextBoard, coord, boardSize);
 
       setBoard(nextBoard);
+      setLastMove(coord);
 
       if (result) {
         setWinner(result.winner);
         setWinningCells(result.winningCells);
         scoresStore.set((s) => ({ ...s, [result.winner]: s[result.winner] + 1 }));
-      } else if (checkDraw(nextBoard)) {
+      } else if (checkDraw(nextBoard, boardSize)) {
         setIsDraw(true);
         scoresStore.set((s) => ({ ...s, draws: s.draws + 1 }));
       } else {
@@ -63,12 +66,13 @@ export function useGame() {
   );
 
   const resetGame = useCallback(() => {
-    setBoard(createEmptyBoard(boardSize));
+    setBoard(createEmptyBoard());
+    setLastMove(null);
     setCurrentPlayer("X");
     setWinner(null);
     setWinningCells([]);
     setIsDraw(false);
-  }, [boardSize]);
+  }, []);
 
   const changeBoardSize = useCallback((size: BoardSize) => {
     boardSizeStore.set(size);
@@ -81,6 +85,7 @@ export function useGame() {
   return {
     board,
     boardSize,
+    lastMove,
     currentPlayer,
     winner,
     winningCells,

@@ -1,20 +1,28 @@
 "use client";
 
 import { GameCell } from "./GameCell";
-import type { BoardSize, Cell, Player } from "@/types/game";
+import { getCellValue } from "@/lib/game";
+import type { Coord, Player, SmallBoardSize, SparseBoard } from "@/types/game";
 
 interface GameBoardProps {
-  board: Cell[];
-  boardSize: BoardSize;
-  onCellClick: (index: number) => void;
+  board: SparseBoard;
+  boardSize: SmallBoardSize;
+  onCellClick: (coord: Coord) => void;
   winner: Player | null;
-  winningCells: number[];
+  winningCells: Coord[];
   isDraw: boolean;
 }
 
 export function GameBoard({ board, boardSize, onCellClick, winner, winningCells, isDraw }: GameBoardProps) {
   const gap = boardSize === 10 ? "gap-1 sm:gap-1.5" : boardSize === 5 ? "gap-1.5 sm:gap-2" : "gap-2 sm:gap-3";
   const isGameOver = Boolean(winner) || isDraw;
+
+  const cells: Coord[] = [];
+  for (let row = 0; row < boardSize; row++) {
+    for (let col = 0; col < boardSize; col++) {
+      cells.push({ row, col });
+    }
+  }
 
   return (
     <div className="relative mx-auto w-full max-w-[min(92vw,32rem)] sm:max-w-md">
@@ -29,19 +37,18 @@ export function GameBoard({ board, boardSize, onCellClick, winner, winningCells,
           gridTemplateRows: `repeat(${boardSize}, minmax(0, 1fr))`,
         }}
       >
-        {board.map((value, index) => {
-          const row = Math.floor(index / boardSize);
-          const col = index % boardSize;
-          const isWinning = winningCells.includes(index);
+        {cells.map(({ row, col }) => {
+          const value = getCellValue(board, row, col);
+          const isWinning = winningCells.some((c) => c.row === row && c.col === col);
           const isDimmed = isGameOver && winningCells.length > 0 && !isWinning;
           return (
             <GameCell
-              key={index}
+              key={`${row}-${col}`}
               value={value}
               row={row}
               col={col}
               boardSize={boardSize}
-              onClick={() => onCellClick(index)}
+              onClick={() => onCellClick({ row, col })}
               disabled={isGameOver}
               isWinning={isWinning}
               isDimmed={isDimmed}

@@ -1,13 +1,13 @@
 "use client";
 
 import { cn } from "@/lib/utils";
-import type { BoardSize, Cell } from "@/types/game";
+import type { Cell, SmallBoardSize } from "@/types/game";
 
 interface GameCellProps {
   value: Cell;
   row: number;
   col: number;
-  boardSize: BoardSize;
+  boardSize: SmallBoardSize;
   onClick: () => void;
   disabled: boolean;
   isWinning: boolean;

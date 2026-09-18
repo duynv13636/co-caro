@@ -4,7 +4,8 @@ import { useEffect, useState } from "react";
 import Link from "next/link";
 import { Globe } from "lucide-react";
 import confetti from "canvas-confetti";
-import type { BoardSize } from "@/types/game";
+import type { BoardSize, Coord } from "@/types/game";
+import { getCellValue } from "@/lib/game";
 import { useGame } from "@/hooks/useGame";
 import { useGameEndEffects } from "@/hooks/useGameEndEffects";
 import { useTheme } from "@/hooks/useTheme";
@@ -17,6 +18,7 @@ import { PlayerCard } from "./PlayerCard";
 import { ScoreBoard } from "./ScoreBoard";
 import { GameStatus } from "./GameStatus";
 import { GameBoard } from "./GameBoard";
+import { PannableBoard } from "./PannableBoard";
 import { GameResultModal } from "./GameResultModal";
 
 function fireConfetti() {
@@ -43,6 +45,7 @@ export function TicTacToe() {
   const {
     board,
     boardSize,
+    lastMove,
     currentPlayer,
     winner,
     winningCells,
@@ -68,10 +71,10 @@ export function TicTacToe() {
     return () => clearTimeout(timer);
   }, [winner, isDraw]);
 
-  const handleCellClick = (index: number) => {
-    if (board[index] || winner || isDraw) return;
+  const handleCellClick = (coord: Coord) => {
+    if (getCellValue(board, coord.row, coord.col) || winner || isDraw) return;
     playMove(currentPlayer);
-    makeMove(index);
+    makeMove(coord);
   };
 
   const handleNewGame = () => {
@@ -149,14 +152,27 @@ export function TicTacToe() {
       </div>
 
       <div className="mt-8">
-        <GameBoard
-          board={board}
-          boardSize={boardSize}
-          onCellClick={handleCellClick}
-          winner={winner}
-          winningCells={winningCells}
-          isDraw={isDraw}
-        />
+        {boardSize === 3 || boardSize === 5 || boardSize === 10 ? (
+          <GameBoard
+            board={board}
+            boardSize={boardSize}
+            onCellClick={handleCellClick}
+            winner={winner}
+            winningCells={winningCells}
+            isDraw={isDraw}
+          />
+        ) : (
+          <PannableBoard
+            key={boardSize}
+            board={board}
+            boardSize={boardSize}
+            onCellClick={handleCellClick}
+            winner={winner}
+            winningCells={winningCells}
+            lastMove={lastMove}
+            disabled={Boolean(winner) || isDraw}
+          />
+        )}
       </div>
 
       <div className="mt-6">

@@ -1,7 +1,7 @@
 "use client";
 
 import { useCallback, useEffect, useMemo, useState } from "react";
-import type { BoardSize, Player, RoomState } from "@/types/game";
+import type { BoardSize, Coord, Player, RoomState } from "@/types/game";
 import { getClientId } from "@/lib/clientId";
 import { isFirebaseConfigured } from "@/lib/firebase";
 import {
@@ -58,9 +58,9 @@ export function useOnlineGame(code: string) {
             : "ready";
 
   const makeMove = useCallback(
-    (index: number) => {
+    (coord: Coord) => {
       if (!code) return;
-      void makeOnlineMove(code, index, clientId);
+      void makeOnlineMove(code, coord, clientId);
     },
     [code, clientId]
   );

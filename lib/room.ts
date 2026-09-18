@@ -1,10 +1,11 @@
 import { get, onValue, ref, runTransaction, set } from "firebase/database";
-import type { BoardSize, Cell, Player, RoomState, Scores } from "@/types/game";
-import { checkDraw, checkWinner, createEmptyBoard } from "./game";
+import type { BoardSize, Coord, Player, RoomState, Scores, SparseBoard } from "@/types/game";
+import { checkDraw, checkWinnerFromMove, createEmptyBoard, getCellValue, placeMove } from "./game";
 import { getRoomsDb } from "./firebase";
 
 const ROOM_CODE_CHARS = "ABCDEFGHJKLMNPQRSTUVWXYZ23456789";
 const DEFAULT_SCORES: Scores = { X: 0, O: 0, draws: 0 };
+/** Online rooms sync the whole board over Firebase on every move, so they're kept to small fixed boards. */
 const VALID_BOARD_SIZES: BoardSize[] = [3, 5, 10];
 
 function generateRoomCode(length = 6): string {
@@ -19,20 +20,30 @@ function roomPath(code: string): string {
   return `rooms/${code.toUpperCase()}`;
 }
 
-/**
- * Firebase Realtime Database silently deletes any key whose value is `null` —
- * including array entries — which would otherwise corrupt an empty board (an
- * all-null array can come back missing entirely, or with shifted indices).
- * Empty cells are encoded as "" on the wire and decoded back to `null` here.
- */
-function encodeBoard(board: Cell[]): Array<Player | ""> {
-  return board.map((cell) => (cell === "X" || cell === "O" ? cell : ""));
+function decodeBoard(raw: unknown): SparseBoard {
+  if (!raw || typeof raw !== "object") return {};
+  const board: SparseBoard = {};
+  for (const [key, value] of Object.entries(raw as Record<string, unknown>)) {
+    if (value === "X" || value === "O") board[key] = value;
+  }
+  return board;
 }
 
-function decodeBoard(raw: unknown, boardSize: BoardSize): Cell[] {
-  const length = boardSize * boardSize;
-  const source = Array.isArray(raw) ? raw : [];
-  return Array.from({ length }, (_, i) => (source[i] === "X" || source[i] === "O" ? (source[i] as Player) : null));
+function decodeCoord(raw: unknown): Coord | null {
+  if (
+    raw &&
+    typeof raw === "object" &&
+    typeof (raw as Coord).row === "number" &&
+    typeof (raw as Coord).col === "number"
+  ) {
+    return raw as Coord;
+  }
+  return null;
+}
+
+function decodeWinningCells(raw: unknown): Coord[] {
+  if (!Array.isArray(raw)) return [];
+  return raw.map(decodeCoord).filter((c): c is Coord => c !== null);
 }
 
 /** Defensively rebuilds a well-formed RoomState from whatever Firebase hands back. */
@@ -45,10 +56,11 @@ function normalizeRoom(raw: unknown): RoomState | null {
 
   return {
     boardSize,
-    board: decodeBoard(r.board, boardSize),
+    board: decodeBoard(r.board),
+    lastMove: decodeCoord(r.lastMove),
     currentPlayer: r.currentPlayer === "O" ? "O" : "X",
     winner: r.winner === "X" || r.winner === "O" ? (r.winner as Player) : null,
-    winningCells: Array.isArray(r.winningCells) ? (r.winningCells as number[]) : [],
+    winningCells: decodeWinningCells(r.winningCells),
     isDraw: Boolean(r.isDraw),
     scores: {
       X: typeof scores.X === "number" ? scores.X : 0,
@@ -65,7 +77,7 @@ function normalizeRoom(raw: unknown): RoomState | null {
 }
 
 function toWire(room: RoomState): object {
-  return { ...room, board: encodeBoard(room.board) };
+  return { ...room };
 }
 
 export async function createRoom(boardSize: BoardSize, clientId: string): Promise<string> {
@@ -80,7 +92,8 @@ export async function createRoom(boardSize: BoardSize, clientId: string): Promis
     const now = Date.now();
     const room: RoomState = {
       boardSize,
-      board: createEmptyBoard(boardSize),
+      board: createEmptyBoard(),
+      lastMove: null,
       currentPlayer: "X",
       winner: null,
       winningCells: [],
@@ -144,7 +157,7 @@ export function subscribeRoom(code: string, callback: (room: RoomState | null) =
   );
 }
 
-export async function makeOnlineMove(code: string, index: number, clientId: string): Promise<void> {
+export async function makeOnlineMove(code: string, coord: Coord, clientId: string): Promise<void> {
   const db = getRoomsDb();
   const roomRef = ref(db, roomPath(code));
 
@@ -154,16 +167,16 @@ export async function makeOnlineMove(code: string, index: number, clientId: stri
     if (room.winner || room.isDraw) return undefined;
     const symbol = room.currentPlayer;
     if (room.players[symbol] !== clientId) return undefined;
-    if (room.board[index] !== null) return undefined;
+    if (getCellValue(room.board, coord.row, coord.col) !== null) return undefined;
 
-    const nextBoard = room.board.slice();
-    nextBoard[index] = symbol;
-    const result = checkWinner(nextBoard, room.boardSize);
-    const draw = !result && checkDraw(nextBoard);
+    const nextBoard = placeMove(room.board, coord, symbol);
+    const result = checkWinnerFromMove(nextBoard, coord, room.boardSize);
+    const draw = !result && checkDraw(nextBoard, room.boardSize);
 
     const nextRoom: RoomState = {
       ...room,
       board: nextBoard,
+      lastMove: coord,
       currentPlayer: symbol === "X" ? "O" : "X",
       winner: result ? result.winner : null,
       winningCells: result ? result.winningCells : [],
@@ -187,7 +200,8 @@ export async function resetRound(code: string): Promise<void> {
     if (!room) return undefined;
     const nextRoom: RoomState = {
       ...room,
-      board: createEmptyBoard(room.boardSize),
+      board: createEmptyBoard(),
+      lastMove: null,
       currentPlayer: "X",
       winner: null,
       winningCells: [],
@@ -207,7 +221,8 @@ export async function changeOnlineBoardSize(code: string, boardSize: BoardSize):
     const nextRoom: RoomState = {
       ...room,
       boardSize,
-      board: createEmptyBoard(boardSize),
+      board: createEmptyBoard(),
+      lastMove: null,
       currentPlayer: "X",
       winner: null,
       winningCells: [],
