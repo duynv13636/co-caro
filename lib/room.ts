@@ -5,8 +5,10 @@ import { getRoomsDb } from "./firebase";
 
 const ROOM_CODE_CHARS = "ABCDEFGHJKLMNPQRSTUVWXYZ23456789";
 const DEFAULT_SCORES: Scores = { X: 0, O: 0, draws: 0 };
-/** Online rooms sync the whole board over Firebase on every move, so they're kept to small fixed boards. */
-const VALID_BOARD_SIZES: BoardSize[] = [3, 5, 10];
+// The board is synced sparsely (only occupied cells), so its wire size tracks move
+// count, not board area — a 1000x1000 room costs the same as a 3x3 one. "infinite"
+// is left out: it has no bound to agree on a room-wide draw/reset baseline against.
+const VALID_BOARD_SIZES: BoardSize[] = [3, 5, 10, 1000];
 
 function generateRoomCode(length = 6): string {
   let code = "";

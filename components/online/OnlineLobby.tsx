@@ -100,8 +100,8 @@ export function OnlineLobby() {
               Create a Room
             </h2>
             <p className="mt-1 text-sm text-slate-500 dark:text-slate-400">Choose a board size to start</p>
-            <div className="mt-4 inline-flex gap-1 rounded-2xl border border-slate-900/10 dark:border-white/10 bg-white/50 dark:bg-white/5 p-1">
-              {([3, 5, 10] as BoardSize[]).map((size) => (
+            <div className="mt-4 inline-flex flex-wrap gap-1 rounded-2xl border border-slate-900/10 dark:border-white/10 bg-white/50 dark:bg-white/5 p-1">
+              {([3, 5, 10, 1000] as BoardSize[]).map((size) => (
                 <button
                   key={size}
                   type="button"

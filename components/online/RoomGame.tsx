@@ -18,6 +18,7 @@ import { PlayerCard } from "@/components/game/PlayerCard";
 import { ScoreBoard } from "@/components/game/ScoreBoard";
 import { GameStatus } from "@/components/game/GameStatus";
 import { GameBoard } from "@/components/game/GameBoard";
+import { PannableBoard } from "@/components/game/PannableBoard";
 import { GameResultModal } from "@/components/game/GameResultModal";
 import { RoomShareCard } from "./RoomShareCard";
 
@@ -158,7 +159,7 @@ export function RoomGame({ code }: RoomGameProps) {
     );
   }
 
-  const { board, boardSize, currentPlayer, winner, winningCells, isDraw, scores } = room;
+  const { board, boardSize, lastMove, currentPlayer, winner, winningCells, isDraw, scores } = room;
   const boardDisabled = Boolean(winner) || isDraw || !opponentConnected || !isMyTurn;
 
   const handleCellClick = (coord: Coord) => {
@@ -206,7 +207,7 @@ export function RoomGame({ code }: RoomGameProps) {
       ) : null}
 
       <div className="mt-6 flex justify-center">
-        <BoardSizeSelector value={boardSize} onChange={handleBoardSizeChange} sizes={[3, 5, 10]} />
+        <BoardSizeSelector value={boardSize} onChange={handleBoardSizeChange} sizes={[3, 5, 10, 1000]} />
       </div>
 
       <div className="mt-6">
@@ -229,7 +230,18 @@ export function RoomGame({ code }: RoomGameProps) {
             winningCells={winningCells}
             isDraw={isDraw}
           />
-        ) : null}
+        ) : (
+          <PannableBoard
+            key={boardSize}
+            board={board}
+            boardSize={boardSize}
+            onCellClick={handleCellClick}
+            winner={winner}
+            winningCells={winningCells}
+            lastMove={lastMove}
+            disabled={boardDisabled}
+          />
+        )}
       </div>
 
       <div className="mt-6">
