@@ -24,7 +24,10 @@ export function GameBoard({ board, boardSize, onCellClick, winner, winningCells,
       />
       <div
         className={`relative grid aspect-square w-full rounded-2xl border border-slate-900/10 dark:border-white/10 bg-white/40 dark:bg-white/[0.04] p-2 sm:p-3 shadow-2xl shadow-slate-900/10 dark:shadow-black/40 backdrop-blur-2xl ${gap}`}
-        style={{ gridTemplateColumns: `repeat(${boardSize}, minmax(0, 1fr))` }}
+        style={{
+          gridTemplateColumns: `repeat(${boardSize}, minmax(0, 1fr))`,
+          gridTemplateRows: `repeat(${boardSize}, minmax(0, 1fr))`,
+        }}
       >
         {board.map((value, index) => {
           const row = Math.floor(index / boardSize);

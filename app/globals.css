@@ -52,7 +52,7 @@ body {
 }
 
 .animate-mark-in {
-  animation: mark-in 220ms cubic-bezier(0.34, 1.56, 0.64, 1);
+  animation: mark-in 220ms cubic-bezier(0.16, 1, 0.3, 1);
 }
 
 @keyframes win-pulse {
